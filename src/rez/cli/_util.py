@@ -3,7 +3,7 @@ from __future__ import print_function
 import os
 import sys
 import signal
-from rez.vendor.argparse import _SubParsersAction, ArgumentParser, SUPPRESS, \
+from argparse import _SubParsersAction, ArgumentParser, SUPPRESS, \
     ArgumentError
 
 
@@ -114,7 +114,7 @@ class LazyArgumentParser(ArgumentParser):
         if self._subparsers:
             for action in self._subparsers._actions:
                 if isinstance(action, LazySubParsersAction):
-                    for parser_name, parser in action._name_parser_map.iteritems():
+                    for parser_name, parser in action._name_parser_map.items():
                         action._setup_subparser(parser_name, parser)
         return super(LazyArgumentParser, self).format_help()
 

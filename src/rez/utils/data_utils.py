@@ -3,8 +3,16 @@ Utilities related to managing data types.
 """
 from rez.vendor.schema.schema import Schema, Optional
 from rez.exceptions import RexError
-from collections import MutableMapping
 from threading import Lock
+from rez.vendor.six import six
+
+if six.PY2:
+    from collections import MutableMapping
+else:
+    from collections.abc import MutableMapping
+
+
+basestring = six.string_types[0]
 
 
 class ModifyList(object):
@@ -33,7 +41,7 @@ class ModifyList(object):
 def remove_nones(**kwargs):
     """Return diict copy with nones removed.
     """
-    return dict((k, v) for k, v in kwargs.iteritems() if v is not None)
+    return dict((k, v) for k, v in kwargs.items() if v is not None)
 
 
 def deep_update(dict1, dict2):
@@ -47,7 +55,7 @@ def deep_update(dict1, dict2):
         if isinstance(v, ModifyList):
             return v.apply([])
         elif isinstance(v, dict):
-            return dict((k, flatten(v_)) for k, v_ in v.iteritems())
+            return dict((k, flatten(v_)) for k, v_ in v.items())
         else:
             return v
 
@@ -61,11 +69,11 @@ def deep_update(dict1, dict2):
         else:
             return flatten(v2)
 
-    for k1, v1 in dict1.iteritems():
+    for k1, v1 in dict1.items():
         if k1 not in dict2:
             dict1[k1] = flatten(v1)
 
-    for k2, v2 in dict2.iteritems():
+    for k2, v2 in dict2.items():
         v1 = dict1.get(k2)
 
         if v1 is KeyError:
@@ -84,7 +92,7 @@ def deep_del(data, fn):
     """
     result = {}
 
-    for k, v in data.iteritems():
+    for k, v in data.items():
         if not fn(v):
             if isinstance(v, dict):
                 result[k] = deep_del(v, fn)
@@ -111,7 +119,7 @@ def get_dict_diff(d1, d2):
         removed = []
         changed = []
 
-        for k1, v1 in d1_.iteritems():
+        for k1, v1 in d1_.items():
             if k1 not in d2_:
                 removed.append(namespace + [k1])
             else:
@@ -126,7 +134,7 @@ def get_dict_diff(d1, d2):
                     else:
                         changed.append(namespace + [k1])
 
-        for k2 in d2_.iterkeys():
+        for k2 in d2_.keys():
             if k2 not in d1_:
                 added.append(namespace + [k2])
 
@@ -331,7 +339,7 @@ def convert_dicts(d, to_class=AttrDictWrapper, from_class=dict):
         Converted data as `to_class` instance.
     """
     d_ = to_class()
-    for key, value in d.iteritems():
+    for key, value in d.items():
         if isinstance(value, from_class):
             d_[key] = convert_dicts(value, to_class=to_class,
                                     from_class=from_class)
@@ -419,13 +427,14 @@ class AttributeForwardMeta(type):
 
     Example:
 
+        >>> import six
+        >>>
         >>> class Foo(object):
         >>>     def __init__(self):
         >>>         self.a = "a_from_foo"
         >>>         self.b = "b_from_foo"
         >>>
-        >>> class Bah(object):
-        >>>     __metaclass__ = AttributeForwardMeta
+        >>> class Bah(six.with_metaclass(AttributeForwardMeta, object)):
         >>>     keys = ["a", "b", "c"]
         >>>
         >>>     @property
@@ -503,7 +512,7 @@ class LazyAttributeMeta(type):
 
         if schema:
             schema_dict = schema._schema
-            for key, key_schema in schema_dict.iteritems():
+            for key, key_schema in schema_dict.items():
                 optional = isinstance(key, Optional)
                 while isinstance(key, Schema):
                     key = key._schema

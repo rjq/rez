@@ -33,7 +33,7 @@ class Wrapper(object):
         with open(filepath) as f:
             content = f.read()
         try:
-            doc = yaml.load(content)
+            doc = yaml.load(content, Loader=yaml.FullLoader)
             doc = doc["kwargs"]
             context_name = doc["context_name"]
             tool_name = doc["tool_name"]
@@ -88,7 +88,7 @@ class Wrapper(object):
         return retcode
 
     def _run(self, prefix_char, args):
-        from rez.vendor import argparse
+        import argparse
 
         parser = argparse.ArgumentParser(prog=self.tool_name,
                                          prefix_chars=prefix_char)
@@ -216,7 +216,7 @@ class Wrapper(object):
             if len(variants) > 1:
                 self._print_conflicting(variants)
             else:
-                variant = iter(variants).next()
+                variant = next(iter(variants))
                 print("Package:  %s" % variant.qualified_package_name)
         return 0
 
@@ -230,7 +230,7 @@ class Wrapper(object):
                 return 1
             else:
                 from rez.packages_ import iter_packages
-                variant = iter(variants).next()
+                variant = next(iter(variants))
                 it = iter_packages(name=variant.name)
                 rows = []
                 colors = []

@@ -11,12 +11,16 @@ import tempfile
 from ast import literal_eval
 from rez.config import config
 from rez.vendor.pydot import pydot
-from rez.utils.system import popen
+from rez.utils.execution import Popen
 from rez.utils.formatting import PackageRequest
 from rez.exceptions import PackageRequestError
 from rez.vendor.pygraph.readwrite.dot import read as read_dot
 from rez.vendor.pygraph.algorithms.accessibility import accessibility
 from rez.vendor.pygraph.classes.digraph import digraph
+from rez.vendor.six import six
+
+
+basestring = six.string_types[0]
 
 
 def read_graph_from_string(txt):
@@ -103,7 +107,7 @@ def write_compacted(g):
         value = tuple(list(edge) + [label]) if label else edge
         d_edges.setdefault(tuple(attrs), []).append(tuple(value))
 
-    doc = dict(nodes=d_nodes.items(), edges=d_edges.items())
+    doc = dict(nodes=list(d_nodes.items()), edges=list(d_edges.items()))
     contents = str(doc)
     return contents
 
@@ -167,7 +171,7 @@ def prune_graph(graph_str, package_name):
     g = read_dot(graph_str)
     nodes = set()
 
-    for node, attrs in g.node_attr.iteritems():
+    for node, attrs in g.node_attr.items():
         attr = [x for x in attrs if x[0] == "label"]
         if attr:
             label = attr[0][1]
@@ -278,9 +282,9 @@ def view_graph(graph_str, dest_file=None):
     print("loading image viewer (%s)..." % prog)
 
     if config.image_viewer:
-        proc = popen([config.image_viewer, dest_file])
-        proc.wait()
-        viewed = not bool(proc.returncode)
+        with Popen([config.image_viewer, dest_file]) as p:
+            p.wait()
+        viewed = not bool(p.returncode)
 
     if not viewed:
         import webbrowser

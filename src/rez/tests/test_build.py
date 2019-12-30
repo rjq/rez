@@ -6,9 +6,10 @@ from rez.build_system import create_build_system
 from rez.resolved_context import ResolvedContext
 from rez.exceptions import BuildError, BuildContextResolveError,\
     PackageFamilyNotFoundError
-import rez.vendor.unittest2 as unittest
+import unittest
 from rez.tests.util import TestBase, TempdirMixin, find_file_in_path, \
-    shell_dependent, install_dependent, program_dependent
+    per_available_shell, install_dependent, program_dependent
+from rez.utils.platform_ import platform_
 import shutil
 import os.path
 
@@ -121,21 +122,21 @@ class TestBuild(TestBase, TempdirMixin):
         from subprocess import PIPE
         self._test_build("sup_world", "3.8")
         context = self._create_context("sup_world==3.8")
-        proc = context.execute_command(['test_ghetto'], stdout=PIPE)
+        proc = context.execute_command(['test_ghetto'], stdout=PIPE, text=True)
         stdout = proc.communicate()[0]
         self.assertEqual('sup dogg - how is dis shizzle doin today?',
                          stdout.strip())
 
-    @shell_dependent()
-    @install_dependent
+    @per_available_shell()
+    @install_dependent()
     def test_build_whack(self):
         """Test that a broken build fails correctly."""
         working_dir = os.path.join(self.src_root, "whack")
         builder = self._create_builder(working_dir)
         self.assertRaises(BuildError, builder.build, clean=True)
 
-    @shell_dependent()
-    @install_dependent
+    @per_available_shell()
+    @install_dependent()
     def test_builds(self):
         """Test an interdependent set of builds."""
         self._test_build_build_util()
@@ -144,8 +145,8 @@ class TestBuild(TestBase, TempdirMixin):
         self._test_build_loco()
         self._test_build_bah()
 
-    @shell_dependent()
-    @install_dependent
+    @per_available_shell()
+    @install_dependent()
     def test_builds_anti(self):
         """Test we can build packages that contain anti packages"""
         self._test_build_build_util()
@@ -155,6 +156,11 @@ class TestBuild(TestBase, TempdirMixin):
     @program_dependent("cmake")
     def test_build_cmake(self):
         """Test a cmake-based package."""
+        if platform_.name == "windows":
+            self.skipTest("This test does not run on Windows due to temporary"
+                          "limitations of the cmake build_system plugin"
+                          " implementation.")
+
         self.assertRaises(PackageFamilyNotFoundError, self._create_context,
                           "sup_world==3.8")
         self._test_build_translate_lib()
@@ -170,7 +176,7 @@ class TestBuild(TestBase, TempdirMixin):
 
         proc = context.execute_command(['hai'], stdout=PIPE)
         stdout = proc.communicate()[0]
-        self.assertEqual('Oh hai!', stdout.strip())
+        self.assertEqual('Oh hai!', stdout.decode("utf-8").strip())
 
 
 if __name__ == '__main__':

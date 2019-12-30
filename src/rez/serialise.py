@@ -2,8 +2,7 @@
 Read and write data from file. File caching via a memcached server is supported.
 """
 from contextlib import contextmanager
-from inspect import isfunction, ismodule, getargspec
-from StringIO import StringIO
+from inspect import isfunction, ismodule
 import sys
 import stat
 import os
@@ -17,10 +16,12 @@ from rez.utils.filesystem import TempDirs
 from rez.utils.data_utils import ModifyList
 from rez.exceptions import ResourceError, InvalidPackageError
 from rez.utils.memcached import memcached
-from rez.utils.system import add_sys_paths
+from rez.utils.execution import add_sys_paths
+from rez.utils import py23
 from rez.config import config
 from rez.vendor.atomicwrites import atomic_write
 from rez.vendor.enum import Enum
+from rez.vendor.six.six.moves import StringIO
 from rez.vendor import yaml
 
 
@@ -135,7 +136,7 @@ def _load_from_file__key(filepath, format_, update_data_callback):
         callback_key = getattr(update_data_callback, "__name__", "None")
 
     return str(("package_file", filepath, str(format_), callback_key,
-                st.st_ino, st.st_mtime))
+                int(st.st_ino), st.st_mtime))
 
 
 @memcached(servers=config.memcached_uri if config.cache_package_files else None,
@@ -228,7 +229,8 @@ def _load_py(stream, filepath=None):
              InvalidPackageError=InvalidPackageError)
 
     try:
-        exec stream in g
+        with open(filepath, "rb") as f:
+            exec(compile(f.read(), filepath, 'exec'), g)
     except Exception as e:
         import traceback
         frames = traceback.extract_tb(sys.exc_info()[2])
@@ -245,7 +247,7 @@ def _load_py(stream, filepath=None):
     excludes = set(('scope', 'InvalidPackageError', '__builtins__',
                     'early', 'late', 'include', 'ModifyList'))
 
-    for k, v in g.iteritems():
+    for k, v in g.items():
         if k not in excludes and \
                 (k not in __builtins__ or __builtins__[k] != v):
             result[k] = v
@@ -305,19 +307,19 @@ def process_python_objects(data, filepath=None):
 
                 # make a copy of the func with its own globals, and add 'this'
                 import types
-                fn = types.FunctionType(func.func_code,
-                                        func.func_globals.copy(),
-                                        name=func.func_name,
-                                        argdefs=func.func_defaults,
-                                        closure=func.func_closure)
+                fn = types.FunctionType(func.__code__,
+                                        func.__globals__.copy(),
+                                        name=func.__name__,
+                                        argdefs=func.__defaults__,
+                                        closure=func.__closure__)
 
                 # apply globals
-                fn.func_globals["this"] = EarlyThis(data)
-                fn.func_globals.update(get_objects())
+                fn.__globals__["this"] = EarlyThis(data)
+                fn.__globals__.update(get_objects())
 
                 # execute the function
-                spec = getargspec(func)
-                args = spec.args or []
+                args = py23.get_function_arg_names(func)
+
                 if len(args) not in (0, 1):
                     raise ResourceError("@early decorated function must "
                                         "take zero or one args only")
@@ -358,7 +360,7 @@ def process_python_objects(data, filepath=None):
 
     def _trim(value):
         if isinstance(value, dict):
-            for k, v in value.items():
+            for k, v in list(value.items()):
                 if isfunction(v):
                     if v.__name__ == "preprocess":
                         # preprocess is a special case. It has to stay intact
@@ -397,8 +399,8 @@ def load_yaml(stream, **kwargs):
     # "<string>" with the filename if there's an error...
     content = stream.read()
     try:
-        return yaml.load(content) or {}
-    except Exception, e:
+        return yaml.load(content, Loader=yaml.FullLoader) or {}
+    except Exception as e:
         if stream.name and stream.name != '<string>':
             for mark_name in 'context_mark', 'problem_mark':
                 mark = getattr(e, mark_name, None)

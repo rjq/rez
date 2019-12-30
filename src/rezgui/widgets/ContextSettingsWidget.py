@@ -1,15 +1,19 @@
-from rezgui.qt import QtGui
+from Qt import QtWidgets
 from rezgui.util import create_pane
 from rezgui.mixins.ContextViewMixin import ContextViewMixin
 from rezgui.models.ContextModel import ContextModel
 from rez.config import config
 from rez.vendor import yaml
+from rez.vendor.six import six
 from rez.vendor.yaml.error import YAMLError
 from rez.vendor.schema.schema import Schema, SchemaError, Or, And, Use
 from functools import partial
 
 
-class ContextSettingsWidget(QtGui.QWidget, ContextViewMixin):
+basestring = six.string_types[0]
+
+
+class ContextSettingsWidget(QtWidgets.QWidget, ContextViewMixin):
 
     titles = {
         "packages_path":        "Search path for Rez packages",
@@ -36,26 +40,26 @@ class ContextSettingsWidget(QtGui.QWidget, ContextViewMixin):
         super(ContextSettingsWidget, self).__init__(parent)
         ContextViewMixin.__init__(self, context_model)
 
-        self.schema_keys = set(self.schema_dict.iterkeys())
+        self.schema_keys = set(self.schema_dict.keys())
         if attributes:
             self.schema_keys &= set(attributes)
             assert self.schema_keys
 
-        schema_dict = dict((k, v) for k, v in self.schema_dict.iteritems()
+        schema_dict = dict((k, v) for k, v in self.schema_dict.items()
                            if k in self.schema_keys)
         self.schema = Schema(schema_dict)
 
-        self.edit = QtGui.QTextEdit()
+        self.edit = QtWidgets.QTextEdit()
         self.edit.setStyleSheet("font: 12pt 'Courier'")
-        self.default_btn = QtGui.QPushButton("Set To Defaults")
-        self.discard_btn = QtGui.QPushButton("Discard Changes...")
-        self.apply_btn = QtGui.QPushButton("Apply")
+        self.default_btn = QtWidgets.QPushButton("Set To Defaults")
+        self.discard_btn = QtWidgets.QPushButton("Discard Changes...")
+        self.apply_btn = QtWidgets.QPushButton("Apply")
         self.discard_btn.setEnabled(False)
         self.apply_btn.setEnabled(False)
         btn_pane = create_pane([None, self.default_btn, self.discard_btn,
                                 self.apply_btn], True)
 
-        layout = QtGui.QVBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.edit)
         layout.addWidget(btn_pane)
         self.setLayout(layout)
@@ -74,16 +78,16 @@ class ContextSettingsWidget(QtGui.QWidget, ContextViewMixin):
 
     def apply_changes(self):
         def _content_error(title, text):
-            ret = QtGui.QMessageBox.warning(self, title, text,
-                                            QtGui.QMessageBox.Discard,
-                                            QtGui.QMessageBox.Cancel)
-            if ret == QtGui.QMessageBox.Discard:
+            ret = QtWidgets.QMessageBox.warning(self, title, text,
+                                            QtWidgets.QMessageBox.Discard,
+                                            QtWidgets.QMessageBox.Cancel)
+            if ret == QtWidgets.QMessageBox.Discard:
                 self.discard_changes()
 
         # load new content
         try:
             txt = self.edit.toPlainText()
-            data = yaml.load(str(txt))
+            data = yaml.load(str(txt), Loader=yaml.FullLoader)
         except YAMLError as e:
             _content_error("Invalid syntax", str(e))
             return
@@ -104,13 +108,13 @@ class ContextSettingsWidget(QtGui.QWidget, ContextViewMixin):
 
     def discard_changes(self, prompt=False):
         if prompt:
-            ret = QtGui.QMessageBox.warning(
+            ret = QtWidgets.QMessageBox.warning(
                 self,
                 "The context settings have been modified.",
                 "Your changes will be lost. Are you sure?",
-                QtGui.QMessageBox.Ok,
-                QtGui.QMessageBox.Cancel)
-            if ret != QtGui.QMessageBox.Ok:
+                QtWidgets.QMessageBox.Ok,
+                QtWidgets.QMessageBox.Cancel)
+            if ret != QtWidgets.QMessageBox.Ok:
                 return
 
         self._update_text()
@@ -125,7 +129,7 @@ class ContextSettingsWidget(QtGui.QWidget, ContextViewMixin):
                 "implicit_packages": implicits,
                 "package_filter": package_filter,
                 "caching": caching}
-        data = dict((k, v) for k, v in data.iteritems()
+        data = dict((k, v) for k, v in data.items()
                     if k in self.schema_keys)
 
         self._set_text(data)
@@ -139,7 +143,7 @@ class ContextSettingsWidget(QtGui.QWidget, ContextViewMixin):
                 "implicit_packages": implicits,
                 "package_filter": model.package_filter,
                 "caching": model.caching}
-        data = dict((k, v) for k, v in data.iteritems()
+        data = dict((k, v) for k, v in data.items()
                     if k in self.schema_keys)
 
         self._set_text(data)
@@ -148,7 +152,7 @@ class ContextSettingsWidget(QtGui.QWidget, ContextViewMixin):
 
     def _set_text(self, data):
         lines = []
-        for key, value in data.iteritems():
+        for key, value in data.items():
             lines.append('')
             txt = yaml.dump({key: value}, default_flow_style=False)
             title = self.titles.get(key)

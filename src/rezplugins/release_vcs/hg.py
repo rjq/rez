@@ -31,7 +31,7 @@ class HgReleaseVCS(ReleaseVCS):
         except AssertionError:
             raise HgReleaseVCSError(
                 "'%s' is not the root of a mercurial working copy" % self.vcs_root)
-        except Exception, err:
+        except Exception as err:
             raise HgReleaseVCSError("failed to call hg binary: " + str(err))
 
         self.patch_path = os.path.join(hgdir, 'patches')
@@ -149,7 +149,7 @@ class HgReleaseVCS(ReleaseVCS):
         # rsplit, once, since we KNOW how the right side should be formatted
         tags = dict(line.rstrip().rsplit(None, 1) for line in lines
                     if line.strip())
-        for tag_name, tag_info in tags.iteritems():
+        for tag_name, tag_info in tags.items():
             rev, shortnode = tag_info.split(':')
             tags[tag_name] = {'rev': rev, 'shortnode': shortnode}
         return tags

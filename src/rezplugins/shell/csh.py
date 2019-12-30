@@ -5,7 +5,7 @@ import pipes
 import os.path
 import subprocess
 from rez.config import config
-from rez.utils.system import popen
+from rez.utils.execution import Popen
 from rez.utils.platform_ import platform_
 from rez.shells import Shell, UnixShell
 from rez.rex import EscapedString
@@ -16,13 +16,6 @@ class CSH(UnixShell):
     last_command_status = '$status'
     histfile = "~/.history"
     histvar = "histfile"
-    _executable = None
-
-    @property
-    def executable(cls):
-        if cls._executable is None:
-            cls._executable = Shell.find_executable('csh')
-        return cls._executable
 
     @classmethod
     def name(cls):
@@ -44,8 +37,8 @@ class CSH(UnixShell):
         # detect system paths using registry
         cmd = "cmd=`which %s`; unset PATH; $cmd %s 'echo __PATHS_ $PATH'" \
               % (cls.name(), cls.command_arg)
-        p = popen(cmd, stdout=subprocess.PIPE,
-                  stderr=subprocess.PIPE, shell=True)
+        p = Popen(cmd, stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE, shell=True, text=True)
         out_, err_ = p.communicate()
         if p.returncode:
             paths = []
@@ -118,10 +111,10 @@ class CSH(UnixShell):
     def _bind_interactive_rez(self):
         if config.set_prompt and self.settings.prompt:
             # TODO: Do more like in sh.py, much less error prone
-            stored_prompt = os.getenv("REZ_STORED_PROMPT")
+            stored_prompt = os.getenv("REZ_STORED_PROMPT_CSH")
             curr_prompt = stored_prompt or os.getenv("prompt", "[%m %c]%# ")
             if not stored_prompt:
-                self.setenv("REZ_STORED_PROMPT", '"%s"' % curr_prompt)
+                self.setenv("REZ_STORED_PROMPT_CSH", '"%s"' % curr_prompt)
 
             new_prompt = "$REZ_ENV_PROMPT"
             new_prompt = (new_prompt + " %s") if config.prefix_prompt \

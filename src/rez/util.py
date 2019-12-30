@@ -1,83 +1,36 @@
 """
 Misc useful stuff.
+TODO: Move this into rez.utils.?
 """
-import stat
 import sys
+import collections
 import atexit
 import os
 import os.path
-import copy
 from rez.exceptions import RezError
-from rez.utils.yaml import dump_yaml
 from rez.vendor.progress.bar import Bar
+from rez.vendor.six import six
 
-
-DEV_NULL = open(os.devnull, 'w')
 
 
 class ProgressBar(Bar):
     def __init__(self, label, max):
         from rez.config import config
+
         if config.quiet or not config.show_progress:
-            self.file = DEV_NULL
+            self.file = open(os.devnull, 'w')
+            self.close_file = True
             self.hide_cursor = False
+        else:
+            self.close_file = False
 
         super(Bar, self).__init__(label, max=max, bar_prefix=' [', bar_suffix='] ')
 
-
-# TODO: use distlib.ScriptMaker
-# TODO: or, do the work ourselves to make this cross platform
-# FIXME: *nix only
-def create_executable_script(filepath, body, program=None):
-    """Create an executable script.
-
-    Args:
-        filepath (str): File to create.
-        body (str or callable): Contents of the script. If a callable, its code
-            is used as the script body.
-        program (str): Name of program to launch the script, 'python' if None
-    """
-    program = program or "python"
-    if callable(body):
-        from rez.utils.sourcecode import SourceCode
-        code = SourceCode(func=body)
-        body = code.source
-
-    if not body.endswith('\n'):
-        body += '\n'
-
-    with open(filepath, 'w') as f:
-        # TODO: make cross platform
-        f.write("#!/usr/bin/env %s\n" % program)
-        f.write(body)
-
-    # TODO: Although Windows supports os.chmod you can only set the readonly
-    # flag. Setting the file readonly breaks the unit tests that expect to
-    # clean up the files once the test has run.  Temporarily we don't bother
-    # setting the permissions, but this will need to change.
-    if os.name == "posix":
-    	os.chmod(filepath, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
-                 | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-
-def create_forwarding_script(filepath, module, func_name, *nargs, **kwargs):
-    """Create a 'forwarding' script.
-
-    A forwarding script is one that executes some arbitrary Rez function. This
-    is used internally by Rez to dynamically create a script that uses Rez,
-    even though the parent environment may not be configured to do so.
-    """
-    doc = dict(
-        module=module,
-        func_name=func_name)
-
-    if nargs:
-        doc["nargs"] = nargs
-    if kwargs:
-        doc["kwargs"] = kwargs
-
-    body = dump_yaml(doc)
-    create_executable_script(filepath, body, "_rez_fwd")
+    def __del__(self):
+        if self.close_file:
+            self.file.close()
+        if hasattr(Bar, '__del__'):
+            Bar.__del__(self)
 
 
 def dedup(seq):
@@ -95,7 +48,7 @@ def shlex_join(value):
     def quote(s):
         return pipes.quote(s) if '$' not in s else s
 
-    if hasattr(value, '__iter__'):
+    if is_non_string_iterable(value):
         return ' '.join(quote(x) for x in value)
     else:
         return str(value)
@@ -150,7 +103,7 @@ def get_close_pkgs(pkg, pkgs, fuzziness=0.4):
     for pkg_, r in (matches + fam_matches):
         d[pkg_] = d.get(pkg_, 0.0) + r
 
-    combined = [(k, v * 0.5) for k, v in d.iteritems()]
+    combined = [(k, v * 0.5) for k, v in d.items()]
     return sorted(combined, key=lambda x: -x[1])
 
 
@@ -174,6 +127,19 @@ def _atexit():
     except RezError:
         pass
 
+
+def is_non_string_iterable(arg):
+    """Python 2 and 3 compatible non-string iterable identifier"""
+
+    if six.PY2:
+        iterable_class = collections.Iterable
+    else:
+        iterable_class = collections.abc.Iterable
+
+    return (
+        isinstance(arg, iterable_class)
+        and not isinstance(arg, six.string_types)
+    )
 
 # Copyright 2013-2016 Allan Johns.
 #

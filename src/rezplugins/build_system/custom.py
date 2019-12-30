@@ -1,6 +1,11 @@
 """
 Package-defined build command
 """
+try:
+    from builtins import str
+    from builtins import map
+except ImportError:
+    pass
 from pipes import quote
 import functools
 import os.path
@@ -14,7 +19,11 @@ from rez.resolved_context import ResolvedContext
 from rez.exceptions import PackageMetadataError
 from rez.utils.colorize import heading, Printer
 from rez.utils.logging_ import print_warning
+from rez.vendor.six import six
 from rez.config import config
+
+
+basestring = six.string_types[0]
 
 
 class CustomBuildSystem(BuildSystem):
@@ -74,7 +83,7 @@ class CustomBuildSystem(BuildSystem):
         before_args = set(x.dest for x in parser._actions)
 
         try:
-            exec source in {"parser": group}
+            exec(source, {"parser": group})
         except Exception as e:
             print_warning("Error in ./parse_build_args.py: %s" % str(e))
 
@@ -132,7 +141,7 @@ class CustomBuildSystem(BuildSystem):
             cmd_str = command
         else:  # list
             command = command + self.build_args
-            command = map(expand, command)
+            command = list(map(expand, command))
             cmd_str = ' '.join(map(quote, command))
 
         if self.verbose:
@@ -154,7 +163,7 @@ class CustomBuildSystem(BuildSystem):
                 # write args defined in ./parse_build_args.py out as env vars
                 extra_args = getattr(self.opts.parser, "_rezbuild_extra_args", [])
 
-                for key, value in vars(self.opts).iteritems():
+                for key, value in list(vars(self.opts).items()):
                     if key in extra_args:
                         varname = "__PARSE_ARG_%s" % key.upper()
 
@@ -162,8 +171,8 @@ class CustomBuildSystem(BuildSystem):
                         if isinstance(value, bool):
                             value = 1 if value else 0
                         elif isinstance(value, (list, tuple)):
-                            value = map(str, value)
-                            value = map(quote, value)
+                            value = list(map(str, value))
+                            value = list(map(quote, value))
                             value = ' '.join(value)
 
                         executor.env[varname] = value

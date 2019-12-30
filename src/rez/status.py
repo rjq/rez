@@ -149,7 +149,7 @@ class Status(object):
                     seen.add(tool)
 
         for suite in self.suites:
-            for tool, d in suite.get_tools().iteritems():
+            for tool, d in suite.get_tools().items():
                 if tool in seen:
                     continue
                 if pattern and not fnmatch(tool, pattern):
@@ -240,7 +240,7 @@ class Status(object):
                     msg = "Packages (in conflict): %s" % vars_str
                     _pr(msg, critical)
                 else:
-                    variant = iter(variants).next()
+                    variant = next(iter(variants))
                     _pr("Package:  %s" % variant.qualified_package_name)
                 return True
 

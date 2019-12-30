@@ -5,20 +5,30 @@ import subprocess
 import sys
 import pipes
 import re
-import UserDict
 import inspect
 import traceback
 from string import Formatter
 from rez.system import system
 from rez.config import config
 from rez.exceptions import RexError, RexUndefinedVariableError, RezSystemError
-from rez.util import shlex_join
+from rez.util import shlex_join, is_non_string_iterable
 from rez.utils import reraise
-from rez.utils.system import popen
+from rez.utils.execution import Popen
 from rez.utils.sourcecode import SourceCode, SourceCodeError
 from rez.utils.data_utils import AttrDictWrapper
 from rez.utils.formatting import expandvars
+from rez.utils.platform_ import platform_
 from rez.vendor.enum import Enum
+from rez.vendor.six import six
+
+
+basestring = six.string_types[0]
+
+# http://python3porting.com/problems.html#replacing-userdict
+if six.PY2:
+    from UserDict import DictMixin
+else:
+    from collections.abc import MutableMapping as DictMixin
 
 
 #===============================================================================
@@ -443,6 +453,17 @@ class ActionInterpreter(object):
     """
     expand_env_vars = False
 
+    # RegEx that captures environment variables (generic form).
+    # Extend/override to regex formats that can capture environment formats
+    # in other interpreters like shells if needed
+    ENV_VAR_REGEX = re.compile(
+        "|".join([
+            "\\${([^\\{\\}]+?)}",               # ${ENVVAR}
+            "\\$([a-zA-Z_]+[a-zA-Z0-9_]*?)",    # $ENVVAR
+        ])
+    )
+
+
     def get_output(self, style=OutputStyle.file):
         """Returns any implementation specific data.
 
@@ -571,6 +592,7 @@ class Python(ActionInterpreter):
                                  "interpreter before using it.")
 
         self.target_environ.update(self.manager.environ)
+        self.adjust_env_for_platform(self.target_environ)
 
     def get_output(self, style=OutputStyle.file):
         self.apply_environ()
@@ -613,9 +635,10 @@ class Python(ActionInterpreter):
     def subprocess(self, args, **subproc_kwargs):
         if self.manager:
             self.target_environ.update(self.manager.environ)
+        self.adjust_env_for_platform(self.target_environ)
 
-        shell_mode = not hasattr(args, '__iter__')
-        return popen(args,
+        shell_mode = isinstance(args, basestring)
+        return Popen(args,
                      shell=shell_mode,
                      env=self.target_environ,
                      **subproc_kwargs)
@@ -624,9 +647,9 @@ class Python(ActionInterpreter):
         if self.passive:
             return
 
-        if hasattr(value, '__iter__'):
+        if is_non_string_iterable(value):
             it = iter(value)
-            cmd = EscapedString.disallow(it.next())
+            cmd = EscapedString.disallow(next(it))
             value = [cmd] + [self.escape_string(x) for x in it]
         else:
             value = EscapedString.disallow(value)
@@ -663,6 +686,54 @@ class Python(ActionInterpreter):
         # but the concept doesn't really feel applicable to Python.  It's just
         # here because the API requires it.
         return "${%s}" % key
+
+    def adjust_env_for_platform(self, env):
+        """ Make required platform-specific adjustments to env.
+        """
+        if platform_.name == "windows":
+            self._add_systemroot_to_env_win32(env)
+
+    def _add_systemroot_to_env_win32(self, env):
+        """ Sets ``%SYSTEMROOT%`` environment variable, if not present
+        in :py:attr:`target_environ` .
+
+        Args:
+            env (dict): desired environment variables
+
+        Notes:
+            on windows, python-3.6 startup fails within an environment
+            where it ``%PATH%`` includes python3, but ``%SYSTEMROOT%`` is not
+            present.
+
+            for example.
+
+            .. code-block:: python
+
+                from subprocess import Popen
+                cmds = ['python', '--version']
+
+                # successful
+                Popen(cmds)
+                Popen(cmds, env={'PATH': 'C:\\Python-3.6.5',
+                                 'SYSTEMROOT': 'C:\Windows'})
+
+                # failure
+                Popen(cmds, env={'PATH': 'C:\\Python-3.6.5'})
+
+                #> Fatal Python Error: failed to get random numbers to initialize Python
+
+        """
+        # 'SYSTEMROOT' unecessary unless 'PATH' is set.
+        if env is None:
+            return
+        # leave SYSTEMROOT alone if set by user
+        if 'SYSTEMROOT' in env:
+            return
+        # not enough info to set SYSTEMROOT
+        if 'SYSTEMROOT' not in os.environ:
+            return
+
+        env['SYSTEMROOT'] = os.environ['SYSTEMROOT']
 
 
 #===============================================================================
@@ -823,7 +894,7 @@ class EscapedString(object):
             return EscapedString('')
 
         it = iter(values)
-        result = EscapedString.promote(it.next())
+        result = EscapedString.promote(next(it))
 
         for value in it:
             result = result + sep
@@ -874,12 +945,6 @@ class NamespaceFormatter(Formatter):
     across shells, and avoids some problems with non-curly-braced variables in
     some situations.
     """
-    # Note: the regex used here matches more than just posix environment variable
-    # names, because special shell expansion characters may be present.
-    ENV_VAR_REF_1   = "\\${([^\\{\\}]+?)}"  # ${ENVVAR}
-    ENV_VAR_REF_2   = "\\$([a-zA-Z_]+[a-zA-Z0-9_]*?)"  # $ENVVAR
-    ENV_VAR_REF     = "%s|%s" % (ENV_VAR_REF_1, ENV_VAR_REF_2)
-    ENV_VAR_REGEX   = re.compile(ENV_VAR_REF)
 
     def __init__(self, namespace):
         Formatter.__init__(self)
@@ -888,10 +953,12 @@ class NamespaceFormatter(Formatter):
 
     def format(self, format_string, *args, **kwargs):
         def escape_envvar(matchobj):
-            value = (x for x in matchobj.groups() if x is not None).next()
+            value = next((x for x in matchobj.groups() if x is not None))
             return "${{%s}}" % value
 
-        format_string_ = re.sub(self.ENV_VAR_REGEX, escape_envvar, format_string)
+        regex = kwargs.get("regex") or ActionInterpreter.ENV_VAR_REGEX
+
+        format_string_ = re.sub(regex, escape_envvar, format_string)
 
         # for recursive formatting, where a field has a value we want to expand,
         # add kwargs to namespace, so format_field can use them...
@@ -932,7 +999,7 @@ class NamespaceFormatter(Formatter):
 # Environment Classes
 #===============================================================================
 
-class EnvironmentDict(UserDict.DictMixin):
+class EnvironmentDict(DictMixin):
     """
     Provides a mapping interface to `EnvironmentVariable` instances,
     which provide an object-oriented interface for recording environment
@@ -952,7 +1019,7 @@ class EnvironmentDict(UserDict.DictMixin):
         """
         self.manager = manager
         self._var_cache = dict((k, EnvironmentVariable(k, self))
-                               for k in manager.parent_environ.iterkeys())
+                               for k in manager.parent_environ.keys())
 
     def keys(self):
         return self._var_cache.keys()
@@ -970,6 +1037,16 @@ class EnvironmentDict(UserDict.DictMixin):
 
     def __contains__(self, key):
         return (key in self._var_cache)
+
+    def __delitem__(self, key):
+        del self._var_cache[key]
+
+    def __iter__(self):
+        for key in self._var_cache.keys():
+            yield key
+
+    def __len__(self):
+        return len(self._var_cache)
 
 
 class EnvironmentVariable(object):
@@ -1023,6 +1100,8 @@ class EnvironmentVariable(object):
 
     def __nonzero__(self):
         return bool(self.value())
+
+    __bool__ = __nonzero__  # py3 compat
 
     def __eq__(self, value):
         if isinstance(value, EnvironmentVariable):
@@ -1175,7 +1254,7 @@ class RexExecutor(object):
                 if isinstance(code, SourceCode):
                     code.exec_(globals_=exec_namespace)
                 else:
-                    exec pyc in exec_namespace
+                    exec(pyc, exec_namespace)
             except RexError:
                 raise
             except SourceCodeError as e:
@@ -1225,12 +1304,12 @@ class RexExecutor(object):
         """
         # makes a copy of the func
         import types
-        fn = types.FunctionType(func.func_code,
-                                func.func_globals.copy(),
-                                name=func.func_name,
-                                argdefs=func.func_defaults,
-                                closure=func.func_closure)
-        fn.func_globals.update(self.globals)
+        fn = types.FunctionType(func.__code__,
+                                func.__globals__.copy(),
+                                name=func.__name__,
+                                argdefs=func.__defaults__,
+                                closure=func.__closure__)
+        fn.__globals__.update(self.globals)
 
         error_class = Exception if config.catch_rex_errors else None
 
@@ -1251,7 +1330,7 @@ class RexExecutor(object):
         return self.manager.get_output(style=style)
 
     def expand(self, value):
-        return self.formatter.format(str(value))
+        return self.formatter.format(str(value), regex=self.interpreter.ENV_VAR_REGEX)
 
 
 # Copyright 2013-2016 Allan Johns.

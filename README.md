@@ -1,4 +1,8 @@
-[![Build Status](https://travis-ci.org/nerdvegas/rez.svg?branch=master)](https://travis-ci.org/nerdvegas/rez)
+[![Core](https://github.com/nerdvegas/rez/workflows/Core/badge.svg?branch=master)](https://github.com/nerdvegas/rez/actions?query=workflow%3ACore+branch%3Amaster)
+[![Ubuntu](https://github.com/nerdvegas/rez/workflows/Ubuntu/badge.svg?branch=master)](https://github.com/nerdvegas/rez/actions?query=workflow%3AUbuntu+branch%3Amaster)
+[![MacOS](https://github.com/nerdvegas/rez/workflows/MacOS/badge.svg?branch=master)](https://github.com/nerdvegas/rez/actions?query=workflow%3AMacOS+branch%3Amaster)
+[![Windows](https://github.com/nerdvegas/rez/workflows/Windows/badge.svg?branch=master)](https://github.com/nerdvegas/rez/actions?query=workflow%3AWindows+branch%3Amaster)
+
 
 ![logo](media/rez_banner_256.png)
 
@@ -190,3 +194,12 @@ like any other package:
 * Has a memcached-based caching system, for caching environment resolves;
 * Has a package filtering feature, allowing for staged package releases such as
   alpha and beta packages.
+
+## Known issues and limitations
+
+* Currently CMake builds do not function on Windows with Rez and
+  the related tests are skipped. A fix requires multiple changes that are on
+  the roadmap. Users have successfully implemented workarounds to utilize
+  CMake with Rez under Windows, but the goal is to provide a seamless experience
+  on any platform in the future. For details checkout
+  https://github.com/nerdvegas/rez/issues/703

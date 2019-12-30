@@ -6,13 +6,14 @@ from __future__ import print_function
 
 def setup_parser(parser, completions=False):
     parser.add_argument(
-        "--pip-version", dest="pip_ver", metavar="VERSION",
-        help="pip version (rez package) to use, default is latest")
-    parser.add_argument(
         "--python-version", dest="py_ver", metavar="VERSION",
         help="python version (rez package) to use, default is latest. Note "
         "that the pip package(s) will be installed with a dependency on "
         "python-MAJOR.MINOR.")
+    parser.add_argument(
+        "--pip-version", dest="pip_ver", metavar="VERSION",
+        help="pip version (rez package) to use, default is latest."
+        " This option is deprecated and will be removed in the future.")
     parser.add_argument(
         "-i", "--install", action="store_true",
         help="install the package")
@@ -24,6 +25,9 @@ def setup_parser(parser, completions=False):
         help="install as released package; if not set, package is installed "
         "locally only")
     parser.add_argument(
+         "-p", "--prefix", type=str, metavar='PATH',
+         help="install to a custom package repository path.")
+    parser.add_argument(
         "PACKAGE",
         help="package to install or archive/url to install from")
 
@@ -31,20 +35,31 @@ def setup_parser(parser, completions=False):
 def command(opts, parser, extra_arg_groups=None):
     from rez.pip import pip_install_package, run_pip_command
     import sys
+    import warnings
 
     if not (opts.search or opts.install):
         parser.error("Expected one of: --install, --search")
 
     if opts.search:
-        p = run_pip_command(["search", opts.PACKAGE])
-        p.wait()
+        with run_pip_command(["search", opts.PACKAGE]) as p:
+            p.wait()
         return
+
+    if opts.pip_ver:
+        with warnings.catch_warnings():
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+            warnings.warn(
+                "The option --pip-version is deprecated and will be removed in a future version",
+                category=DeprecationWarning
+            )
 
     installed_variants, skipped_variants = pip_install_package(
         opts.PACKAGE,
         pip_version=opts.pip_ver,
         python_version=opts.py_ver,
-        release=opts.release)
+        release=opts.release,
+        prefix=opts.prefix)
 
     # print summary
     #

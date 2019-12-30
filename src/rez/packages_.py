@@ -12,10 +12,13 @@ from rez.utils.resources import ResourceHandle, ResourceWrapper
 from rez.exceptions import PackageFamilyNotFoundError, ResourceError
 from rez.vendor.version.version import VersionRange
 from rez.vendor.version.requirement import VersionedObject
+from rez.vendor.six import six
 from rez.serialise import FileFormat
 from rez.config import config
 import sys
 
+
+basestring = six.string_types[0]
 
 # ------------------------------------------------------------------------------
 # package-related classes
@@ -26,7 +29,7 @@ class PackageRepositoryResourceWrapper(ResourceWrapper, StringFormatMixin):
 
     def validated_data(self):
         data = ResourceWrapper.validated_data(self)
-        data = dict((k, v) for k, v in data.iteritems() if v is not None)
+        data = dict((k, v) for k, v in data.items() if v is not None)
         return data
 
     @property
@@ -537,7 +540,7 @@ def get_package(name, version, paths=None):
 
     it = iter_packages(name, range_, paths)
     try:
-        return it.next()
+        return next(it)
     except StopIteration:
         return None
 
@@ -687,7 +690,7 @@ def get_completions(prefix, paths=None, family_only=False):
         words = set(x.name for x in iter_package_families(paths=paths)
                     if x.name.startswith(prefix))
         if len(words) == 1:
-            fam = iter(words).next()
+            fam = next(iter(words))
 
     if family_only:
         return words

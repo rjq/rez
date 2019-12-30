@@ -6,10 +6,13 @@ from __future__ import print_function
 from rez.vendor.version.requirement import Requirement
 from rez.solver import Solver, Cycle, SolverStatus
 from rez.config import config
-import rez.vendor.unittest2 as unittest
+import unittest
 from rez.tests.util import TestBase
 import itertools
 import os.path
+
+
+solver_verbosity = 1
 
 
 class TestSolver(TestBase):
@@ -26,11 +29,11 @@ class TestSolver(TestBase):
         s1 = Solver(reqs,
                     self.packages_path,
                     optimised=True,
-                    verbosity=Solver.max_verbosity)
+                    verbosity=solver_verbosity)
         s2 = Solver(reqs,
                     self.packages_path,
                     optimised=False,
-                    verbosity=Solver.max_verbosity)
+                    verbosity=solver_verbosity)
 
         s_perms = []
         perms = itertools.permutations(reqs)
@@ -38,7 +41,7 @@ class TestSolver(TestBase):
             s = Solver(reqs_,
                        self.packages_path,
                        optimised=True,
-                       verbosity=Solver.max_verbosity)
+                       verbosity=solver_verbosity)
             s_perms.append(s)
 
         return (s1, s2, s_perms)

@@ -10,9 +10,13 @@ from rez.utils.logging_ import print_warning, print_error
 from rez.utils.yaml import load_yaml
 from rez.utils.scope import scoped_formatter
 from rez.vendor.schema.schema import Or
+from rez.vendor.six import six
 import os.path
 import smtplib
 import sys
+
+
+basestring = six.string_types[0]
 
 
 class EmailReleaseHook(ReleaseHook):
@@ -87,7 +91,7 @@ class EmailReleaseHook(ReleaseHook):
                        to_addrs=recipients,
                        msg=msg.as_string())
             print('Email(s) sent.')
-        except Exception, e:
+        except Exception as e:
             print_error("release email delivery failed: %s" % str(e))
 
     def get_recipients(self):
@@ -126,7 +130,7 @@ class EmailReleaseHook(ReleaseHook):
             match = True
 
             if filters:
-                for attr, test_value in test(filters, dict).iteritems():
+                for attr, test_value in test(filters, dict).items():
 
                     missing = object()
                     value = getattr(self.package, attr, missing)

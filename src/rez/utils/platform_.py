@@ -5,7 +5,7 @@ import os.path
 import re
 import subprocess
 from rez.util import which
-from rez.utils.system import popen
+from rez.utils.execution import Popen
 from rez.utils.data_utils import cached_property
 from rez.utils.platform_mapped import platform_mapped
 from rez.exceptions import RezSystemError
@@ -104,6 +104,10 @@ class Platform(object):
             print_error("Error detecting logical core count, defaulting to 1: %s"
                         % str(e))
         return 1
+
+    @property
+    def has_case_sensitive_filesystem(self):
+        return True
 
     # -- implementation
 
@@ -222,8 +226,10 @@ class LinuxPlatform(_UnixPlatform):
         # next, try getting the output of the lsb_release program
         import subprocess
 
-        p = popen(['/usr/bin/env', 'lsb_release', '-a'],
-                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = Popen(
+            ['/usr/bin/env', 'lsb_release', '-a'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
         txt = p.communicate()[0]
 
         if not p.returncode:
@@ -366,7 +372,10 @@ class LinuxPlatform(_UnixPlatform):
     def _physical_cores_from_lscpu(self):
         import subprocess
         try:
-            p = popen(['lscpu'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = Popen(
+                ['lscpu'], stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True
+            )
         except (OSError, IOError):
             return None
 
@@ -433,8 +442,11 @@ class OSXPlatform(_UnixPlatform):
     def _physical_cores_from_osx_sysctl(self):
         import subprocess
         try:
-            p = popen(['sysctl', '-n', 'hw.physicalcpu'],
-                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = Popen(
+                ['sysctl', '-n', 'hw.physicalcpu'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True
+            )
         except (OSError, IOError):
             return None
 
@@ -477,6 +489,10 @@ class WindowsPlatform(Platform):
         final_version = str('.').join(toks)
         return "windows-%s" % final_version
 
+    @property
+    def has_case_sensitive_filesystem(self):
+        return False
+
     def _image_viewer(self):
         # os.system("file.jpg") will open default viewer on windows
         return ''
@@ -518,8 +534,11 @@ class WindowsPlatform(Platform):
         # windows
         import subprocess
         try:
-            p = popen('wmic cpu get NumberOfCores /value'.split(),
-                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = Popen(
+                'wmic cpu get NumberOfCores /value'.split(),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True
+            )
         except (OSError, IOError):
             return None
 

@@ -2,10 +2,14 @@ from rez.packages_ import iter_packages
 from rez.exceptions import ConfigurationError
 from rez.config import config
 from rez.utils.data_utils import cached_property, cached_class_property
+from rez.vendor.six import six
 from rez.vendor.version.requirement import VersionedObject, Requirement
 from hashlib import sha1
 import fnmatch
 import re
+
+
+basestring = six.string_types[0]
 
 
 class PackageFilterBase(object):
@@ -65,7 +69,7 @@ class PackageFilterBase(object):
 
     @property
     def sha1(self):
-        return sha1(str(self)).hexdigest()
+        return sha1(str(self).encode("utf-8")).hexdigest()
 
     def __repr__(self):
         return "%s(%s)" % (self.__class__.__name__, str(self))
@@ -136,14 +140,16 @@ class PackageFilter(PackageFilterBase):
     def __and__(self, other):
         """Combine two filters."""
         result = self.copy()
-        for rule in other._excludes.itervalues():
+        for rule in other._excludes.values():
             result.add_exclusion(rule)
-        for rule in other._includes.itervalues():
+        for rule in other._includes.values():
             result.add_inclusion(rule)
         return result
 
     def __nonzero__(self):
         return bool(self._excludes)
+
+    __bool__ = __nonzero__  # py3 compat
 
     @cached_property
     def cost(self):
@@ -156,7 +162,7 @@ class PackageFilter(PackageFilterBase):
             float: The approximate cost of the filter.
         """
         total = 0.0
-        for family, rules in self._excludes.iteritems():
+        for family, rules in self._excludes.items():
             cost = sum(x.cost() for x in rules)
             if family:
                 cost = cost / float(10)
@@ -182,7 +188,7 @@ class PackageFilter(PackageFilterBase):
                                  ("includes", self._includes)):
             if dict_:
                 rules = []
-                for rules_ in dict_.itervalues():
+                for rules_ in dict_.values():
                     rules.extend(map(str, rules_))
                 data[namespace] = rules
         return data
@@ -266,6 +272,8 @@ class PackageFilterList(PackageFilterBase):
 
     def __nonzero__(self):
         return any(self.filters)
+
+    __bool__ = __nonzero__  # py3 compat
 
     def __str__(self):
         filters = sorted(self.filters, key=lambda x: (x.cost, str(x)))

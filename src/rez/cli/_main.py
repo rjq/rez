@@ -4,7 +4,8 @@ The main command-line entry point.
 from __future__ import print_function
 
 import sys
-from rez.vendor.argparse import _StoreTrueAction, SUPPRESS
+import importlib
+from argparse import _StoreTrueAction, SUPPRESS
 from rez.cli._util import subcommands, LazyArgumentParser, _env_var_true
 from rez.utils.logging_ import print_error
 from rez.exceptions import RezError, RezSystemError
@@ -46,7 +47,7 @@ class SetupRezSubParser(object):
 
     def get_module(self):
         if self.module_name not in sys.modules:
-            __import__(self.module_name, globals(), locals(), [], -1)
+            importlib.import_module(self.module_name)
         return sys.modules[self.module_name]
 
 
@@ -70,6 +71,9 @@ class InfoAction(_StoreTrueAction):
 
 
 def run(command=None):
+
+    sys.dont_write_bytecode = True
+
     parser = LazyArgumentParser("rez")
 
     parser.add_argument("-i", "--info", action=InfoAction,

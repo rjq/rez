@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from rez import __version__
 from rez.utils.data_utils import AttrDictWrapper, RO_AttrDictWrapper, \
     convert_dicts, cached_property, cached_class_property, LazyAttributeMeta, \
@@ -10,6 +11,7 @@ from rez import module_root_path
 from rez.system import system
 from rez.vendor.schema.schema import Schema, SchemaError, And, Or, Use
 from rez.vendor import yaml
+from rez.vendor.six import six
 from rez.vendor.yaml.error import YAMLError
 from rez.backport.lru_cache import lru_cache
 from contextlib import contextmanager
@@ -17,6 +19,9 @@ from inspect import ismodule
 import os
 import os.path
 import copy
+
+
+basestring = six.string_types[0]
 
 
 # -----------------------------------------------------------------------------
@@ -234,6 +239,13 @@ class RezToolsVisibility_(Str):
         return Or(*(x.name for x in RezToolsVisibility))
 
 
+class ExecutableScriptMode_(Str):
+    @cached_class_property
+    def schema(cls):
+        from rez.utils.execution import ExecutableScriptMode
+        return Or(*(x.name for x in ExecutableScriptMode))
+
+
 class OptionalStrOrFunction(Setting):
     schema = Or(None, basestring, callable)
 
@@ -303,6 +315,7 @@ config_schema = Schema({
     "documentation_url":                            Str,
     "suite_visibility":                             SuiteVisibility_,
     "rez_tools_visibility":                         RezToolsVisibility_,
+    "create_executable_script_mode":                ExecutableScriptMode_,
     "suite_alias_prefix_char":                      Char,
     "package_definition_python_path":               OptionalStr,
     "tmpdir":                                       OptionalStr,
@@ -412,7 +425,7 @@ _plugin_config_dict = {
 # Config
 # -----------------------------------------------------------------------------
 
-class Config(object):
+class Config(six.with_metaclass(LazyAttributeMeta, object)):
     """Rez configuration settings.
 
     You should call the `create_config` function, rather than constructing a
@@ -423,7 +436,6 @@ class Config(object):
     files update the master configuration to create the final config. See the
     comments at the top of 'rezconfig' for more details.
     """
-    __metaclass__ = LazyAttributeMeta
     schema = config_schema
     schema_error = ConfigurationError
 
@@ -765,7 +777,7 @@ def expand_system_vars(data):
         elif isinstance(value, (list, tuple, set)):
             return [_expanded(x) for x in value]
         elif isinstance(value, dict):
-            return dict((k, _expanded(v)) for k, v in value.iteritems())
+            return dict((k, _expanded(v)) for k, v in value.items())
         else:
             return value
     return _expanded(data)
@@ -808,8 +820,6 @@ def _replace_config(other):
 
 @lru_cache()
 def _load_config_py(filepath):
-    from rez.vendor.six.six import exec_
-
     reserved = dict(
         # Standard Python module variables
         # Made available from within the module,
@@ -821,18 +831,18 @@ def _load_config_py(filepath):
         ModifyList=ModifyList
     )
 
-    globs = reserved.copy()
+    g = reserved.copy()
     result = {}
 
     with open(filepath) as f:
         try:
             code = compile(f.read(), filepath, 'exec')
-            exec_(code, _globs_=globs)
-        except Exception, e:
+            exec(code, g)
+        except Exception as e:
             raise ConfigurationError("Error loading configuration from %s: %s"
                                      % (filepath, str(e)))
 
-    for k, v in globs.iteritems():
+    for k, v in g.items():
         if k != '__builtins__' \
                 and not ismodule(v) \
                 and k not in reserved:
@@ -846,7 +856,7 @@ def _load_config_yaml(filepath):
     with open(filepath) as f:
         content = f.read()
     try:
-        doc = yaml.load(content) or {}
+        doc = yaml.load(content, Loader=yaml.FullLoader) or {}
     except YAMLError as e:
         raise ConfigurationError("Error loading configuration from %s: %s"
                                  % (filepath, str(e)))

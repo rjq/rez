@@ -6,7 +6,7 @@ from rez.solver import SolverCallbackReturn
 from rez.resolver import Resolver, ResolverStatus
 from rez.system import system
 from rez.config import config
-from rez.util import shlex_join, dedup
+from rez.util import shlex_join, dedup, is_non_string_iterable
 from rez.utils.sourcecode import SourceCodeError
 from rez.utils.colorize import critical, heading, local, implicit, Printer
 from rez.utils.formatting import columnise, PackageRequest, ENV_VAR_REGEX
@@ -23,6 +23,7 @@ from rez.package_filter import PackageFilterList
 from rez.shells import create_shell
 from rez.exceptions import ResolvedContextError, PackageCommandError, RezError
 from rez.utils.graph_utils import write_dot, write_compacted, read_graph_from_string
+from rez.vendor.six import six
 from rez.vendor.version.version import VersionRange
 from rez.vendor.enum import Enum
 from rez.vendor import yaml
@@ -40,6 +41,9 @@ import time
 import sys
 import os
 import os.path
+
+
+basestring = six.string_types[0]
 
 
 class RezToolsVisibility(Enum):
@@ -489,7 +493,7 @@ class ResolvedContext(object):
                 if variant.name not in overrides:
                     if len(variant.version) >= rank:
                         version = variant.version.trim(rank - 1)
-                        version = version.next()
+                        version = next(version)
                         req = "~%s<%s" % (variant.name, str(version))
                         rank_limiters.append(req)
             request += rank_limiters
@@ -839,7 +843,7 @@ class ResolvedContext(object):
         removed_packages = d.get("removed_packages", set())
 
         if newer_packages:
-            for name, pkgs in newer_packages.iteritems():
+            for name, pkgs in newer_packages.items():
                 this_pkg = pkgs[0]
                 other_pkg = pkgs[-1]
                 diff_str = "(+%d versions)" % (len(pkgs) - 1)
@@ -848,7 +852,7 @@ class ResolvedContext(object):
                             diff_str))
 
         if older_packages:
-            for name, pkgs in older_packages.iteritems():
+            for name, pkgs in older_packages.items():
                 this_pkg = pkgs[0]
                 other_pkg = pkgs[-1]
                 diff_str = "(-%d versions)" % (len(pkgs) - 1)
@@ -905,7 +909,7 @@ class ResolvedContext(object):
                  ("fillcolor", node_color),
                  ("style", "filled")]
 
-        for name, qname in nodes.iteritems():
+        for name, qname in nodes.items():
             g.add_node(name, attrs=attrs + [("label", qname)])
         for edge in edges:
             g.add_edge(edge)
@@ -987,7 +991,7 @@ class ResolvedContext(object):
         """
         variants = set()
         tools_dict = self.get_tools(request_only=False)
-        for variant, tools in tools_dict.itervalues():
+        for variant, tools in tools_dict.values():
             if tool_name in tools:
                 variants.add(variant)
         return variants
@@ -1007,11 +1011,11 @@ class ResolvedContext(object):
 
         tool_sets = defaultdict(set)
         tools_dict = self.get_tools(request_only=request_only)
-        for variant, tools in tools_dict.itervalues():
+        for variant, tools in tools_dict.values():
             for tool in tools:
                 tool_sets[tool].add(variant)
 
-        conflicts = dict((k, v) for k, v in tool_sets.iteritems() if len(v) > 1)
+        conflicts = dict((k, v) for k, v in tool_sets.items() if len(v) > 1)
         return conflicts
 
     @_on_success
@@ -1088,7 +1092,7 @@ class ResolvedContext(object):
         return path
 
     @_on_success
-    def execute_command(self, args, parent_environ=None, **subprocess_kwargs):
+    def execute_command(self, args, parent_environ=None, **Popen_args):
         """Run a command within a resolved context.
 
         This applies the context to a python environ dict, then runs a
@@ -1105,7 +1109,7 @@ class ResolvedContext(object):
             args: Command arguments, can be a string.
             parent_environ: Environment to interpret the context within,
                 defaults to os.environ if None.
-            subprocess_kwargs: Args to pass to subprocess.Popen.
+            Popen_args: Args to pass to subprocess.Popen.
 
         Returns:
             A subprocess.Popen object.
@@ -1122,7 +1126,7 @@ class ResolvedContext(object):
 
         executor = self._create_executor(interpreter, parent_environ)
         self._execute(executor)
-        return interpreter.subprocess(args, **subprocess_kwargs)
+        return interpreter.subprocess(args, **Popen_args)
 
     @_on_success
     def execute_rex_code(self, code, filename=None, shell=None,
@@ -1205,7 +1209,7 @@ class ResolvedContext(object):
         """
         sh = create_shell(shell)
 
-        if hasattr(command, "__iter__"):
+        if is_non_string_iterable(command):
             command = sh.join(command)
 
         # start a new session if specified
@@ -1324,8 +1328,8 @@ class ResolvedContext(object):
             requested_timestamp=self.requested_timestamp,
             building=self.building,
             caching=self.caching,
-            implicit_packages=map(str, self.implicit_packages),
-            package_requests=map(str, self._package_requests),
+            implicit_packages=list(map(str, self.implicit_packages)),
+            package_requests=list(map(str, self._package_requests)),
             package_paths=self.package_paths,
 
             default_patch_lock=self.default_patch_lock.name,
@@ -1352,7 +1356,7 @@ class ResolvedContext(object):
         ))
 
         if fields:
-            data = dict((k, v) for k, v in data.iteritems() if k in fields)
+            data = dict((k, v) for k, v in data.items() if k in fields)
 
         return data
 
@@ -1467,7 +1471,7 @@ class ResolvedContext(object):
 
         # track context usage
         if config.context_tracking_host:
-            data = dict((k, v) for k, v in d.iteritems()
+            data = dict((k, v) for k, v in d.items()
                         if k in config.context_tracking_context_fields)
 
             r._track_context(data, action="sourced")
@@ -1520,7 +1524,7 @@ class ResolvedContext(object):
             amqp_settings=config.context_tracking_amqp,
             routing_key=routing_key,
             data=data,
-            async=True
+            block=False
         )
 
     @classmethod
@@ -1530,7 +1534,7 @@ class ResolvedContext(object):
         if content.startswith('{'):  # assume json content
             doc = json.loads(content)
         else:
-            doc = yaml.load(content)
+            doc = yaml.load(content, Loader=yaml.FullLoader)
 
         context = cls.from_dict(doc, identifier_str)
         return context
@@ -1617,7 +1621,7 @@ class ResolvedContext(object):
 
         # binds objects such as 'request', which are accessible before a resolve
         bindings = self._get_pre_resolve_bindings()
-        for k, v in bindings.iteritems():
+        for k, v in bindings.items():
             executor.bind(k, v)
 
         executor.bind('resolve', VariantsBinding(resolved_pkgs))

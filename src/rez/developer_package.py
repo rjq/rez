@@ -3,13 +3,17 @@ from rez.packages_ import Package
 from rez.serialise import load_from_file, FileFormat, set_objects
 from rez.packages_ import create_package
 from rez.exceptions import PackageMetadataError, InvalidPackageError
-from rez.utils.system import add_sys_paths
+from rez.utils.execution import add_sys_paths
 from rez.utils.sourcecode import SourceCode
 from rez.utils.logging_ import print_info, print_error
 from rez.vendor.enum import Enum
+from rez.vendor.six import six
 from inspect import isfunction
 import os.path
 import stat
+
+
+basestring = six.string_types[0]
 
 
 class PreprocessMode(Enum):
@@ -115,7 +119,7 @@ class DeveloperPackage(Package):
         package.includes = set()
 
         def visit(d):
-            for k, v in d.iteritems():
+            for k, v in d.items():
                 if isinstance(v, SourceCode):
                     package.includes |= (v.includes or set())
                 elif isinstance(v, dict):

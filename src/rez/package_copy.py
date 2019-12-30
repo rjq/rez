@@ -13,6 +13,10 @@ from rez.utils.sourcecode import IncludeModuleManager
 from rez.utils.logging_ import print_info, print_warning
 from rez.utils.filesystem import replacing_symlink, replacing_copy, \
     safe_makedirs, additive_copytree, make_path_writable, get_existing_path
+from rez.vendor.six import six
+
+
+basestring = six.string_types[0]
 
 
 def copy_package(package, dest_repository, variants=None, shallow=False,
@@ -226,13 +230,13 @@ def _copy_variant_payload(src_variant, dest_pkg_repo, shallow=False,
         if not variant_root:
             raise PackageCopyError(
                 "Cannot copy source variant %s - it is a type of variant that "
-                "does not have a root.", src_variant.uri
+                "does not have a root." % src_variant.uri
             )
 
         if not os.path.isdir(variant_root):
             raise PackageCopyError(
                 "Cannot copy source variant %s - its root does not appear to "
-                "be present on disk (%s).", src_variant.uri, variant_root
+                "be present on disk (%s)." % src_variant.uri, variant_root
             )
 
         dest_variant_name = overrides.get("name") or src_variant.name

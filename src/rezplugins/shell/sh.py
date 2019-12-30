@@ -6,7 +6,7 @@ import os.path
 import pipes
 import subprocess
 from rez.config import config
-from rez.utils.system import popen
+from rez.utils.execution import Popen
 from rez.utils.platform_ import platform_
 from rez.shells import Shell, UnixShell
 from rez.rex import EscapedString
@@ -16,13 +16,6 @@ class SH(UnixShell):
     norc_arg = '--noprofile'
     histfile = "~/.bash_history"
     histvar = "HISTFILE"
-    _executable = None
-
-    @property
-    def executable(cls):
-        if cls._executable is None:
-            cls._executable = Shell.find_executable('sh')
-        return cls._executable
 
     @classmethod
     def name(cls):
@@ -44,8 +37,8 @@ class SH(UnixShell):
         # detect system paths using registry
         cmd = "cmd=`which %s`; unset PATH; $cmd %s %s 'echo __PATHS_ $PATH'" \
               % (cls.name(), cls.norc_arg, cls.command_arg)
-        p = popen(cmd, stdout=subprocess.PIPE,
-                  stderr=subprocess.PIPE, shell=True)
+        p = Popen(cmd, stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE, shell=True, text=True)
         out_, err_ = p.communicate()
         if p.returncode:
             paths = []
@@ -99,12 +92,12 @@ class SH(UnixShell):
 
     def _bind_interactive_rez(self):
         if config.set_prompt and self.settings.prompt:
-            self._addline('if [ -z "$REZ_STORED_PROMPT" ]; then export REZ_STORED_PROMPT="$PS1"; fi')
+            self._addline(r'if [ -z "$REZ_STORED_PROMPT_SH" ]; then export REZ_STORED_PROMPT_SH="$PS1"; fi')
             if config.prefix_prompt:
-                cmd = 'export PS1="%s $REZ_STORED_PROMPT"'
+                cmd = 'export PS1="%s $REZ_STORED_PROMPT_SH"'
             else:
-                cmd = 'export PS1="$REZ_STORED_PROMPT%s "'
-            self._addline(cmd % "\[\e[1m\]$REZ_ENV_PROMPT\[\e[0m\]")
+                cmd = 'export PS1="$REZ_STORED_PROMPT_SH %s"'
+            self._addline(cmd % r"\[\e[1m\]$REZ_ENV_PROMPT\[\e[0m\]")
 
     def setenv(self, key, value):
         value = self.escape_string(value)

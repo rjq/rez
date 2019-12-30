@@ -2,21 +2,21 @@ import atexit
 import socket
 import time
 import threading
-from Queue import Queue
 
 from rez.utils import json
 from rez.utils.data_utils import remove_nones
 from rez.utils.logging_ import print_error
 from rez.vendor.amqp import Connection, basic_message
+from rez.vendor.six.six.moves import queue
 
 
 _lock = threading.Lock()
-_queue = Queue()
+_queue = queue.Queue()
 _thread = None
 _num_pending = 0
 
 
-def publish_message(host, amqp_settings, routing_key, data, async=False):
+def publish_message(host, amqp_settings, routing_key, data, block=True):
     """Publish an AMQP message.
 
     Returns:
@@ -32,7 +32,7 @@ def publish_message(host, amqp_settings, routing_key, data, async=False):
         "data": data
     }
 
-    if not async:
+    if block:
         return _publish_message(**kwargs)
 
     if _thread is None:
